@@ -1,47 +1,126 @@
+# Product Requirements Document (PRD) - Cypher Arena AI Agent
+
 <context>
-# Overview  
-[Provide a high-level overview of your product here. Explain what problem it solves, who it's for, and why it's valuable.]
+# Overview
+This project implements an **AI agent for the Cypher Arena platform**. The agent integrates with the Cypher Arena backend API, an MCP server, and optionally Open WebUI to provide chat, automation, and data management capabilities. The primary user is the developer, focusing on automating CRUD operations for Cypher Arena data (Topics, Contrast Pairs) and utilizing news data. The agent leverages the Model Context Protocol (MCP) Python SDK for robust interaction with AI models and tools.
 
-# Core Features  
-[List and describe the main features of your product. For each feature, include:
-- What it does
-- Why it's important
-- How it works at a high level]
+# Core Features
+The AI agent provides the following core functionalities through the Cypher Arena API (documented in `cypher_arena_endpoints.md`):
 
-# User Experience  
-[Describe the user journey and experience. Include:
-- User personas
-- Key user flows
-- UI/UX considerations]
+- **Contrastive Mode Management:**
+  - Retrieve contrastive pairs (paginated, queryable).
+  - Create new contrastive pairs in batches.
+  - Rate existing contrastive pairs in batches (user fingerprinting handled by API).
+- **News Retrieval:**
+  - Fetch news records based on specific time ranges and optional news types.
+- **Topic Management:**
+  - Retrieve topics (paginated, queryable by source).
+  - Insert new topics in batches (avoids duplicates based on name).
+  - Update existing topics (name, source) in batches.
+- **Model Integration:**
+  - Supports interaction with Google Gemini models (primary). Specific models:
+    - `gemini-2.5-pro-preview-03-25` (Preferred: 5 RPM / 25 Req/Day Free Tier)
+    - `gemini-2.5-flash-preview-04-17` (Fallback: 10 RPM / 500 Req/Day Free Tier)
+  - Implements logic to respect Gemini API rate limits (RPM and daily quotas), switching from Pro to Flash if Pro limits are hit, or waiting as configured.
+  - Supports optional interaction with local LM Studio models via a configuration setting.
+  - Utilizes the **Model Context Protocol (MCP) Python SDK** for all model and tool integrations. Documentation/examples fetched via context7 (`/modelcontextprotocol/python-sdk`).
+- **Interface (Optional):**
+  - Integrates with **Open WebUI** for an interactive chat experience when running locally (AI PC scenario).
+
+# User Experience
+- **User Persona:** The primary user is the developer/owner of the agent.
+- **Key User Flow (Automation):**
+  1. Configure the agent (model selection, API keys, rate limit strategy).
+  2. Execute Python scripts to perform automated tasks:
+     - Fetching/creating/rating Contrast Pairs.
+     - Fetching/inserting/updating Topics.
+     - Retrieving News.
+- **Key User Flow (Interactive - Local AI PC):**
+  1. Configure the agent, enabling LM Studio if desired.
+  2. Activate the Python environment (`.venv\Scripts\activate`).
+  3. Start the Open WebUI server (`open-webui serve`).
+  4. Interact with the agent via the Open WebUI interface (http://localhost:8080 or http://localhost:3000 depending on setup) for chat-based commands or queries related to Cypher Arena data.
+- **UI/UX Considerations:**
+  - For automated tasks, interaction is purely script-based.
+  - For interactive use, Open WebUI serves as the primary interface. Installation should follow official Python (`pip install open-webui`) or Docker methods as documented via context7 (`/open-webui/docs`).
+
 </context>
 <PRD>
-# Technical Architecture  
-[Outline the technical implementation details:
-- System components
-- Data models
-- APIs and integrations
-- Infrastructure requirements]
+# Technical Architecture
+- **Language:** Python (Version 3.12.9)
+- **Package Management:** `uv`
+- **Virtual Environment:** `.venv` (local directory)
+- **Core Logic:** Python scripts utilizing the Cypher Arena API and MCP Python SDK. **Includes rate-limiting logic for Gemini API calls.**
+- **Model Interaction:** Through the MCP Python SDK, connecting to Gemini APIs (respecting rate limits) or a local LM Studio instance based on configuration.
+- **API Integration:** Direct HTTPS requests to the Cypher Arena backend (`https://backend.cypher-arena.com/words/agent/`) as defined in `cypher_arena_endpoints.md`.
+- **Interactive Interface (Optional):** Open WebUI, installed via `pip` within the `.venv`.
+- **Configuration:** A global configuration file (e.g., `config.yaml` or `.env`) to manage:
+  - API Keys (Cypher Arena, Gemini)
+  - Model Selection & Strategy:
+    - `LM_STUDIO_ENABLED=true/false`
+    - `DEFAULT_MODEL_PROVIDER=gemini/lm_studio`
+    - `GEMINI_PRO_MODEL_ID=gemini-2.5-pro-preview-03-25`
+    - `GEMINI_FLASH_MODEL_ID=gemini-2.5-flash-preview-04-17`
+    - `GEMINI_RATE_LIMIT_STRATEGY=prefer_pro_fallback_flash` # (e.g., 'pro_only', 'flash_only', 'prefer_pro_wait', 'prefer_pro_fallback_flash')
+  - LM Studio Endpoint (if enabled)
+  - Other operational parameters (e.g., batch sizes).
+  *Example `config.yaml` Structure:*
+  ```yaml
+  api_keys:
+    cypher_arena: "YOUR_CYPHER_ARENA_KEY"
+    gemini: "YOUR_GEMINI_KEY"
+  models:
+    default_provider: "gemini" # "gemini" or "lm_studio"
+    lm_studio_enabled: false
+    lm_studio_endpoint: "http://localhost:1234/v1" # Example endpoint
 
-# Development Roadmap  
-[Break down the development process into phases:
-- MVP requirements
-- Future enhancements
-- Do not think about timelines whatsoever -- all that matters is scope and detailing exactly what needs to be build in each phase so it can later be cut up into tasks]
+    gemini_pro_model_id: "gemini-2.5-pro-preview-03-25"
+    gemini_flash_model_id: "gemini-2.5-flash-preview-04-17"
+    # Strategy examples: 'pro_only', 'flash_only', 'prefer_pro_wait', 'prefer_pro_fallback_flash'
+    gemini_rate_limit_strategy: "prefer_pro_fallback_flash"
+
+  automation:
+    batch_size_contrast_pairs: 50
+    batch_size_topics: 100
+  ```
+- **Deployment Scenarios:**
+  - **1. AI PC (Interactive/Local):** Runs scripts and Open WebUI. Can use Gemini (with rate limiting) or LM Studio models.
+  - **2. Remote Server (Automated):** Runs only automation scripts (Python-based, no Celery needed). Uses Gemini models exclusively (with rate limiting). Requires configuration for API keys and potentially script scheduling via system tools (e.g., cron).
+
+# Development Roadmap
+- **Phase 1: Foundation & Configuration**
+  - Set up project structure (`uv`, `.venv`).
+  - Implement the global configuration system (reading from `config.yaml` or `.env`), including Gemini model IDs and rate limit strategy.
+  - Implement core MCP client logic to connect to configured models (Gemini/LM Studio). **Crucially, implement robust rate-limiting handling for Gemini calls** (e.g., exponential backoff, model switching based on config strategy and API errors/quotas).
+  - Implement Python client functions for *all* Cypher Arena API endpoints documented in `cypher_arena_endpoints.md`. Ensure robust error handling and data validation.
+- **Phase 2: Automation Scripts**
+  - Develop Python scripts for automated CRUD operations:
+    - Batch create/rate Contrast Pairs.
+    - Batch insert/update Topics.
+    - Retrieve News based on date ranges.
+  - Ensure scripts are configurable via the global config file and correctly use the rate-limited MCP client.
+- **Phase 3: Open WebUI Integration (Optional)**
+  - Install and configure Open WebUI via `pip`.
+  - Develop necessary MCP server components or tools within the agent's Python code to expose Cypher Arena functionalities to Open WebUI via chat commands (e.g., "list recent topics", "create pair 'X' 'Y'").
+  - Ensure Open WebUI uses the agent's configuration for model selection and respects rate limits through the underlying MCP client.
 
 # Logical Dependency Chain
-[Define the logical order of development:
-- Which features need to be built first (foundation)
-- Getting as quickly as possible to something usable/visible front end that works
-- Properly pacing and scoping each feature so it is atomic but can also be built upon and improved as development approaches]
+1. **Configuration:** Must be implemented first, including model IDs and rate limit strategy.
+2. **API Client:** Cypher Arena client functions are needed before data operations.
+3. **MCP Client (with Rate Limiting):** Foundational for AI interactions. Rate limiting is critical.
+4. **Automation Scripts:** Depend on Config, API Client, and the rate-limited MCP Client.
+5. **Open WebUI Integration:** Depends on Config, API Client, and MCP components.
 
-# Risks and Mitigations  
-[Identify potential risks and how they'll be addressed:
-- Technical challenges
-- Figuring out the MVP that we can build upon
-- Resource constraints]
+# Risks and Mitigations
+- **Library Compatibility:** Carefully select and test Python libraries. Mitigation: Use `uv lock`, research stability.
+- **API Changes:** Cypher Arena API might change. Mitigation: Rely on documentation, implement robust error handling, maintain separate API client module.
+- **Configuration Complexity:** Managing configurations. Mitigation: Design clear structure, document well.
+- **Rate Limiting Implementation:** Incorrectly handling rate limits could block API access. Mitigation: Implement careful logic based on the chosen strategy (wait, fallback), handle specific API error codes related to quotas, add logging for rate limit events.
 
-# Appendix  
-[Include any additional information:
-- Research findings
-- Technical specifications]
+# Appendix
+- **Cypher Arena API Documentation:** See `cypher_arena_endpoints.md`
+- **MCP Python SDK Reference:** Consult context7 (`/modelcontextprotocol/python-sdk`)
+- **Open WebUI Documentation:** Consult context7 (`/open-webui/docs`)
+- **Python Environment Activation (Windows CMD):** `.venv\Scripts\activate`
+- **Open WebUI Start Command (after pip install):** `open-webui serve`
 </PRD>
