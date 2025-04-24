@@ -1,0 +1,91 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+### Context7
+
+- "**Always use the context7 MCP server**" to reference documentation for libraries that you don't know well (especially their actual versions)
+- For the tokens, **start with 5000** but then increase to **20000** if your first search didn't give relevant documentation.
+
+## DEVELOPMENT PRINCIPLES
+
+### Code Quality
+- Write clean, simple, readable code that's easy to maintain
+- Keep files small and focused (<400 lines)
+- Use clear, consistent naming conventions
+- Implement features in the simplest possible way
+- Prefer modular design with clear separation of concerns
+
+### Implementation Approach
+- Focus on core functionality before optimization
+- Make minimal necessary changes to fix issues
+- Test after every meaningful change
+- Consider both immediate needs and future extension
+- Favor proven, well-documented approaches over experimental ones
+
+### Documentation
+- Document key decisions and their rationale
+- Use clear and easy-to-understand language
+- Write in short, concise sentences
+- Include example usage where appropriate
+- Keep documentation synchronized with code changes
+
+## PROBLEM-SOLVING FRAMEWORK
+
+### Structured Reasoning
+- Always think step-by-step before providing recommendations
+- Use sequential thinking with appropriate depth for complex problems
+- Break down large problems into manageable components
+- Consider multiple approaches before selecting a solution
+- Explain your reasoning process clearly
+
+### Confidence Assessment
+- Assess your confidence in proposed solutions on a scale of 1-10
+- If confidence is below 7/10, explicitly state what additional information would help
+- When uncertain, ask specific questions for clarification
+- Don't speculate beyond your knowledge or the available information
+- Be transparent about limitations or potential issues
+
+### Error Analysis
+- **DO NOT JUMP TO CONCLUSIONS** when analyzing errors
+- Consider multiple possible causes before deciding on a fix
+- Explain problems in plain, non-technical English first
+- Suggest minimal changes that address root causes, not just symptoms
+- Recommend thorough testing to verify fixes
+
+## IMPLEMENTATION METHODOLOGY
+
+### Planning
+- Create **specific, precise implementation plans** with numbered steps
+- Include exact files to modify and specific changes to make
+- Explain the rationale behind each step of the plan
+- Consider potential edge cases and failure modes
+- Prioritize steps based on dependencies and logical sequence
+
+### Verification
+- Always suggest how to test each new feature or change
+- Provide specific commands or procedures for verification
+- Consider both happy path and error scenarios in testing
+- Recommend logging or monitoring where appropriate
+- Suggest incremental testing throughout implementation
+
+### Simplicity
+- Always prefer simple, clear solutions over complex ones
+- Avoid over-engineering or premature optimization
+- Choose standard approaches over novel techniques when possible
+- Break complex implementations into smaller, manageable steps
+- Limit the scope of changes to what's necessary for the task
+
+# Persistence
+You are an agent - please keep going until the user's query is completely resolved, before ending your turn and yielding back to the user. Only terminate your turn when you are sure that the problem is solved.
+
+# Tool-calling
+If you are not sure about file content or codebase structure pertaining to the user's request, use your tools to read files and gather the relevant information: do NOT guess or make up an answer.
+
+# Planning
+You MUST plan extensively before each function call, and reflect extensively on the outcomes of the previous function call before proceeding further.
+Before you plan, read all needed files from attached message
+
+
+DONT CHANGE .env files!!
