@@ -1,17 +1,17 @@
 # Product Requirements Document (PRD)
 
+## Context
+
+This project is an **AI agent for the Cypher Arena platform**. The agent integrates with the MCP server and Open WebUI to provide advanced chat and automation capabilities for Cypher Arena users and workflows.
+
 ## Overview
 
-Build an AI agent with an MCP server that integrates with Open WebUI (using the [open-webui](https://github.com/open-webui/open-webui) Python package with uv). The agent should support chat via the MCP server with:
+The AI agent will support chat and automation via the MCP server, integrating with:
+- **Open WebUI** (using the [open-webui](https://github.com/open-webui/open-webui) Python package with uv)
+- **Local LM Studio models** (optional, see configuration)
+- **Google Gemini models**
 
-- **Local LM Studio models**
-- **Google Gemini models:**
-  - `gemini-2.5-pro-preview-03-25` (Free tier: 5 requests/minute, 25 requests/day; preferred, but respect RPM limits)
-  - `gemini-2.5-flash-preview-04-17` (10 requests/minute, 500 requests/day; fallback if pro model is rate-limited)
-
-## MCP Server Requirements
-
-The MCP server must provide the following tools/endpoints:
+## Key Features
 
 - **Contrastive Mode:**
   - Get contrasting pairs (with IDs, paginated, support query parameters)
@@ -24,10 +24,33 @@ The MCP server must provide the following tools/endpoints:
   - Get topics (paginated, support query parameters)
   - Change topics (in batches)
 
-Endpoints description: endpoints_descriptions.md
+See `endpoints_descriptions.md` for detailed endpoint documentation.
 
+## Deployment Scenarios
 
-- **Implementation language:** Python
+### 1. AI PC (Interactive)
+- Run scripts and interact with Open WebUI using either Gemini or LM Studio models.
+- LM Studio is **optional** and can be enabled/disabled via a global configuration file.
+
+### 2. Remote Server (Automated)
+- Only daily automation scripts are run (no interactive chat).
+- Scripts use Gemini models exclusively (no LM Studio).
+- Automation is managed via Celery (Celery is pre-configured on the server; only the script and settings are needed).
+
+## Automation Requirements
+
+- **Automatic scripts must run once a day** using Gemini models on the remote server.
+- These scripts should be compatible with Celery for scheduled execution.
+- LM Studio should not be required or used on the remote server.
+
+## Configuration
+
+- There must be a **global configuration file** to control model usage (e.g., enable/disable LM Studio, select model provider).
+- The system should default to Gemini models if LM Studio is not enabled.
+
+## Implementation Language
+
+- Python
 
 ## Package Management
 
