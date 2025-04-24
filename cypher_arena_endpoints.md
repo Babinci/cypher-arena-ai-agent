@@ -4,6 +4,12 @@
 
 ---
 
+## Local Development Environment
+
+This API documentation describes endpoints for the AI Agent. For local development, the environment is typically an AI computer running LM Studio, with `cmd` used as the terminal.
+
+---
+
 ## 1. Contrast Pairs
 
 Endpoints for managing and retrieving contrastive pairs.
