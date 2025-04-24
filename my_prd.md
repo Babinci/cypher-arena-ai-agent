@@ -4,6 +4,11 @@
 
 This project is an **AI agent for the Cypher Arena platform**. The agent integrates with the MCP server and Open WebUI to provide advanced chat and automation capabilities for Cypher Arena users and workflows.
 
+## MCP Server Technology
+
+- The MCP server will use the **Model Context Protocol (MCP) Python SDK** for all model and tool integrations.
+- Documentation and references for the MCP SDK should always use **context7** to ensure accuracy and up-to-date information.
+
 ## Overview
 
 The AI agent will support chat and automation via the MCP server, integrating with:
