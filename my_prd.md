@@ -16,6 +16,9 @@ The AI agent will support chat and automation via the MCP server, integrating wi
 - **Local LM Studio models** (optional, see configuration)
 - **Google Gemini models**
 
+**All required Cypher Arena endpoints are now fully implemented and documented.**
+See `cypher_arena_endpoints.md` for the complete and up-to-date API documentation.
+
 ## Key Features
 
 - **Contrastive Mode:**
@@ -28,8 +31,6 @@ The AI agent will support chat and automation via the MCP server, integrating wi
   - Insert topics (in batches)
   - Get topics (paginated, support query parameters)
   - Change topics (in batches)
-
-See `endpoints_descriptions.md` for detailed endpoint documentation.
 
 ## Deployment Scenarios
 
@@ -71,5 +72,5 @@ See `endpoints_descriptions.md` for detailed endpoint documentation.
 
 ## Deliverables / Needs
 
-- Proper documentation and endpoints from Cypher Arena API
+- Cypher Arena API endpoints are now complete and fully documented in `cypher_arena_endpoints.md`.
 - Instructions on how to make the system instantly working
