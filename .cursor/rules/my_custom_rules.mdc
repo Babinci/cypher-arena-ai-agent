@@ -7,6 +7,11 @@ alwaysApply: true
 
 - "**Always use the context7 MCP server**" to reference documentation for libraries that you don't know well (especially their actual versions)
 - For the tokens, **start with 5000** but then increase to **20000** if your first search didn't give relevant documentation.
+- important:  "projectRoot": "C:\Users\walko\IT_projects\Cypher_arena_ai_agent"
+### Task Master
+
+- ALWAYS use taskmaster-ai tools (mcp server) for task management and execution 
+    - before marking  task as done, reflect if we fullfilled al requirements
 
 ## DEVELOPMENT PRINCIPLES
 
