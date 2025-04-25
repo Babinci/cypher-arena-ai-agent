@@ -1,11 +1,16 @@
 from mcp.server.fastmcp import FastMCP
 import httpx
 from typing import List, Optional
+from pydantic import BaseModel
 
 # Create the MCP server instance
 mcp = FastMCP("Cypher Arena MCP Server", log_level="INFO")
 
 BASE_URL = "https://backend.cypher-arena.com/words/agent"
+
+class TopicInsert(BaseModel):
+    name: str
+    source: Optional[str] = "agent"
 
 # ----------- Contrast Pairs Endpoints -----------
 
@@ -58,9 +63,9 @@ def get_topics(page: Optional[int] = 1, count: Optional[int] = 10, source: Optio
     return resp.json()
 
 @mcp.tool()
-def batch_insert_topics(topics: List[dict]) -> list:
-    """Insert multiple topics in a single request."""
-    data = {"topics": topics}
+def batch_insert_topics(topics: List[TopicInsert]) -> list:
+    """Insert multiple topics in a single request. Each topic must have a 'name' and can optionally have a 'source' (default: 'agent')."""
+    data = {"topics": [t.dict() for t in topics]}
     resp = httpx.post(f"{BASE_URL}/topics/", json=data)
     resp.raise_for_status()
     return resp.json()
