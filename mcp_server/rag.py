@@ -30,7 +30,7 @@ model = SentenceTransformer(model_name, device="cuda")
 
 ### function create embeddings for a text
 from main import HEADERS, BASE_URL, httpx
-from base64 import b64encode
+from base64 import b64encode, b64decode
 import numpy as np
 from pydantic import BaseModel, field_validator
 import re
@@ -108,19 +108,75 @@ class PairStringInput(BaseModel):
 
 
 def get_similar_pairs(pair_string: PairStringInput, k: int = 10):
-    """performs rag to get k most similar pairs to a given pair
-    flow:
-        1. gets all pairs from GET with pagination (1000)
-        2. then search with rag for k most similar pairs
-        3. return pairs
-        proper format of pair_string: "Item1 vs Item2"
     """
-    pass
+    1. Fetch all contrast pairs with embeddings (paginated)
+    2. Generate embedding for the input pair_string
+    3. Decode all DB embeddings
+    4. Compute cosine similarity
+    5. Return top k most similar pairs (with similarity score)
+    """
+    # 1. Fetch all pairs with embeddings
+    count = 1000
+    page = 1
+    params = {"page": page, "count": count, "vector_embedding": True}
+    all_pairs = []
+    print("Fetching contrast pairs with embeddings...")
+    while True:
+        resp = httpx.get(f"{BASE_URL}/contrast-pairs/", params=params, headers=HEADERS)
+        resp.raise_for_status()
+        data = resp.json()
+        results = data.get("results", [])
+        # Only keep pairs with a non-None embedding
+        with_emb = [p for p in results if p.get("vector_embedding")]
+        all_pairs.extend(with_emb)
+        if not data.get("next"):
+            break
+        page += 1
+        params["page"] = page
+    print(f"Found {len(all_pairs)} pairs with embeddings.")
+    if not all_pairs:
+        print("No pairs with embeddings found.")
+        return []
+
+    # 2. Generate embedding for input pair_string
+    input_text = pair_string.pair_string if isinstance(pair_string, PairStringInput) else pair_string
+    input_emb = model.encode([input_text])[0]
+    input_emb = input_emb.astype(np.float32)
+
+    # 3. Decode all DB embeddings
+    db_embs = []
+    for p in all_pairs:
+        emb_bytes = b64decode(p["vector_embedding"])
+        emb = np.frombuffer(emb_bytes, dtype=np.float32)
+        db_embs.append(emb)
+    db_embs = np.stack(db_embs)
+
+    # 4. Compute cosine similarity
+    input_norm = input_emb / np.linalg.norm(input_emb)
+    db_norms = db_embs / np.linalg.norm(db_embs, axis=1, keepdims=True)
+    sims = np.dot(db_norms, input_norm)
+
+    # 5. Sort and return top k
+    top_idx = np.argsort(sims)[::-1][:k]
+    top_pairs = []
+    for idx in top_idx:
+        pair = all_pairs[idx]
+        score = float(sims[idx])
+        top_pairs.append({
+            "id": pair["id"],
+            "item1": pair["item1"],
+            "item2": pair["item2"],
+            "similarity": score
+        })
+    print(f"Top {k} most similar pairs to '{input_text}':")
+    for p in top_pairs:
+        print(f"{p['item1']} vs {p['item2']} (id={p['id']}): similarity={p['similarity']:.4f}")
+    return top_pairs
 
 
 if __name__ == "__main__":
     # generate_embeddings_for_contrasting()
-    get_similar_pairs(pair_string="Mata vs Young Leosia")
+    get_similar_pairs(pair_string="Sójka vs Sójka zwyczajna", k=20)
 
 ### generate embedding for contrasting ()
 
