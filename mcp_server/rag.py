@@ -164,18 +164,20 @@ def get_similar_pairs(pair_string: PairStringInput, k: int = 10):
             "id": pair["id"],
             "item1": pair["item1"],
             "item2": pair["item2"],
-            "similarity": score
+            # "similarity": score
         })
     # print(f"Top {k} most similar pairs to '{input_text}':")
     # for p in top_pairs:
     #     print(f"{p['item1']} vs {p['item2']} (id={p['id']}): similarity={p['similarity']:.4f}")
     return top_pairs
 
-
+from pprint import pprint
 if __name__ == "__main__":
     # generate_embeddings_for_contrasting()
-    top_pairs = get_similar_pairs(pair_string="Ziomek od ai vs ziomek od księżyca", k=50)
-    print(f" Top pairs: {top_pairs}")
+    top_pairs = get_similar_pairs(pair_string="wirtualne vs cyfrowa", k=50)
+    # pprint(f" Top pairs: {top_pairs}")
+    for pair in top_pairs:
+        print(f"id: {pair['id']} | {pair['item1']} vs {pair['item2']}")
 
 ### generate embedding for contrasting ()
 

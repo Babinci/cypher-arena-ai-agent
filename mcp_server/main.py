@@ -25,6 +25,10 @@ class TopicUpdate(BaseModel):
     source: Optional[str] = None
     vector_embedding: Optional[str] = None
 
+class ContrastPairRating(BaseModel):
+    pair_id: int
+    rating: int
+
 # ----------- Contrast Pairs Endpoints -----------
 
 @mcp.tool()
@@ -53,9 +57,9 @@ def batch_create_contrast_pairs(pairs: List[dict]) -> list:
     return resp.json()
 
 @mcp.tool()
-def batch_rate_contrast_pairs(ratings: List[dict]) -> dict:
+def batch_rate_contrast_pairs(ratings: List[ContrastPairRating]) -> dict:
     """Rate multiple contrast pairs in a single request."""
-    data = {"ratings": ratings}
+    data = {"ratings": [r.model_dump() for r in ratings]}
     resp = httpx.post(f"{BASE_URL}/contrast-pairs/rate/", json=data, headers=HEADERS)
     resp.raise_for_status()
     return resp.json()
