@@ -29,7 +29,7 @@ for query, query_scores in zip(queries, scores):
 
 
 ### function create embeddings for a text
-
+from .main import HEADERS, BASE_URL, httpx
 
 def generate_embeddings_for_contrasting():
     ''' flow:
@@ -39,6 +39,10 @@ def generate_embeddings_for_contrasting():
     3. some code to generate embeddings only for pairs 
     that don't have embeddings (or flag from db TODO)
     '''
+    count = 1000
+    page = 1
+    params = {"page": page, "count": count, "vector_embedding":True}
+    resp = httpx.get(f"{BASE_URL}/contrast-pairs/", params=params, headers=HEADERS)
     pass
 
 
