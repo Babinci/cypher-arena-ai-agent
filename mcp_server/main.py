@@ -2,11 +2,22 @@ from mcp.server.fastmcp import FastMCP
 import httpx
 from typing import List, Optional
 from pydantic import BaseModel
-
+import os
+from dotenv import load_dotenv
 # Create the MCP server instance
-mcp = FastMCP("Cypher Arena MCP Server", log_level="INFO")
+
+# Load .env from one directory above this file
+from pathlib import Path
+env_path = Path(__file__).parent.parent / '.env'
+load_dotenv(dotenv_path=env_path)
+
+HTTP_X_AGENT_TOKEN = os.getenv("AI_AGENT_SECRET_KEY")
 
 BASE_URL = "https://backend.cypher-arena.com/words/agent"
+
+
+mcp = FastMCP("Cypher Arena MCP Server", log_level="INFO")
+
 
 class TopicInsert(BaseModel):
     name: str

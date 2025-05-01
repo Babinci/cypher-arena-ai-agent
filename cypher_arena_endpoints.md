@@ -4,9 +4,19 @@
 
 ---
 
-## Local Development Environment
+## Authentication
 
-This API documentation describes endpoints for the AI Agent. For local development, the environment is typically an AI computer running LM Studio, with `cmd` used as the terminal.
+All requests to the AI Agent API endpoints require authentication via a custom HTTP header.
+
+- **Header Name:** `X-AGENT-TOKEN`
+- **Value:** A secret token provided to authorized agents. This token is configured on the server-side (via Django settings or environment variables).
+
+**Example Header:**
+```
+X-AGENT-TOKEN: your_secret_agent_token_here
+```
+
+Requests without this header or with an invalid token will receive a `403 Forbidden` response.
 
 ---
 
@@ -22,7 +32,9 @@ Retrieve a paginated list of contrast pairs.
 - **URL:** `/contrast-pairs/`
 - **Query Parameters:**
   - `page` (integer, optional): Page number for pagination.
-  - `count` (integer, optional): Number of items per page (default: 10, max: 100).
+  - `count` (integer, optional): Number of items per page (default: 10, max: 2000).
+  - `random` (boolean, optional): If `true`, returns pairs in a random order. Defaults to `false` (ordered by creation date descending).
+  - `vector_embedding` (boolean, optional): If `true`, includes the `vector_embedding` field in the response for each pair. Defaults to `false`.
 - **Success Response (200 OK):**
   ```json
   {
@@ -36,8 +48,9 @@ Retrieve a paginated list of contrast pairs.
         "id": 1,
         "item1": "apple",
         "item2": "orange",
-        "tags": [],          // List of associated tags (currently not populated by agent endpoints)
-        "ratings": []        // List of associated ratings (currently not populated by agent endpoints)
+        "tags": [],              // List of associated tags (currently not populated by agent endpoints)
+        "ratings": [],           // List of associated ratings (currently not populated by agent endpoints)
+        "vector_embedding": null // Or a base64 string if requested and available
       }
       // ... more pairs
     ]
@@ -69,14 +82,16 @@ Create multiple contrast pairs in a single request.
       "item1": "sun",
       "item2": "moon",
       "tags": [],
-      "ratings": []
+      "ratings": [],
+      "vector_embedding": null
     },
     {
       "id": 102,
       "item1": "day",
       "item2": "night",
       "tags": [],
-      "ratings": []
+      "ratings": [],
+      "vector_embedding": null
     }
   ]
   ```
@@ -144,6 +159,53 @@ Rate multiple contrast pairs in a single request. A user fingerprint is automati
   }
   ```
 
+### 1.4 Batch Update Contrast Pairs
+
+Update multiple existing contrast pairs in a single request. Each item in the `updates` list must contain the `id` of the pair to update and at least one field (`item1`, `item2`, or `vector_embedding`) to modify.
+
+- **Method:** `PATCH`
+- **URL:** `/contrast-pairs/update/`
+- **Request Body:**
+  ```json
+  {
+    "updates": [
+      {"id": integer, "item1": "string (optional)"},
+      {"id": integer, "item2": "string (optional)", "vector_embedding": "base64_string (optional)"},
+      {"id": integer, "vector_embedding": "" (optional, clears embedding)}
+      // ... more updates
+    ]
+  }
+  ```
+- **Success Response (200 OK):**
+  ```json
+  {
+    "status": "batch update successful",
+    "updated_count": 3, // Number of pairs successfully updated
+    "updated_ids": [1, 5, 10] // List of IDs of the updated pairs
+  }
+  ```
+- **Error Response (400 Bad Request):**
+  - If input data is invalid (e.g., missing `id`, no update fields, invalid base64 for `vector_embedding`), a pair ID doesn't exist, or a database error occurs. Even if some updates succeed, a 400 is returned if any fail.
+  ```json
+  {
+    "updates": [
+      {
+        "id": ["This field is required."]
+      },
+      {
+        "non_field_errors": ["At least one field ('item1', 'item2', or 'vector_embedding') must be provided for update."]
+      },
+      {
+        "vector_embedding": ["Invalid base64 format."]
+      }
+    ]
+  }
+  // OR
+  {
+      "error": "Failed to update pairs: [database error message]"
+  }
+  ```
+
 ---
 
 ## 2. News
@@ -152,14 +214,14 @@ Endpoints for retrieving news records, typically sourced from external processes
 
 ### 2.1 Get News
 
-Retrieve news records filtered by a required date range and optional news type.
+Retrieve news records, optionally filtered by date range and/or news type. If no dates are provided, all news records are returned, ordered by `start_date` descending.
 
 - **Method:** `GET`
 - **URL:** `/news/`
 - **Query Parameters:**
-  - `start_time` (string, **required**): Start datetime in ISO 8601 format (e.g., `YYYY-MM-DDTHH:MM:SSZ` or `YYYY-MM-DDTHH:MM:SS+00:00`).
-  - `end_time` (string, **required**): End datetime in ISO 8601 format.
-  - `news_type` (string, optional): Filter by news category (e.g., `general_news`, `polish_showbiznes`, `sport`, `tech`, `science`, `politics`). See `CypherArenaPerplexityDeepResearch.news_source` model field for possible values.
+  - `start_time` (string, optional): Start datetime in ISO 8601 format (e.g., `YYYY-MM-DDTHH:MM:SSZ` or `YYYY-MM-DDTHH:MM:SS+00:00`). **Required if `end_time` is provided.**
+  - `end_time` (string, optional): End datetime in ISO 8601 format. **Required if `start_time` is provided.**
+  - `news_type` (string, optional): Filter by news category (e.g., `general_news`, `polish_showbiznes`, `sport`, `tech`, `science`, `politics`).
 - **Success Response (200 OK):**
   - Returns a list of news records matching the filters.
   ```json
@@ -176,14 +238,67 @@ Retrieve news records filtered by a required date range and optional news type.
   ]
   ```
 - **Error Response (400 Bad Request):**
-  - If required parameters (`start_time`, `end_time`) are missing or datetime format is invalid.
+  - If only one of `start_time` or `end_time` is provided, or if datetime format is invalid.
   ```json
   {
-    "error": "'start_time' and 'end_time' query parameters are required."
+    "error": "Both 'start_time' and 'end_time' must be provided together for date filtering."
   }
   // OR
   {
     "error": "Invalid datetime format. Please use ISO 8601 format (e.g., YYYY-MM-DDTHH:MM:SSZ)."
+  }
+  ```
+
+### 2.2 Batch Create News
+
+Create multiple news records in a single request.
+
+- **Method:** `POST`
+- **URL:** `/news/`
+- **Request Body:**
+  ```json
+  {
+    "news_items": [
+      {
+        "data_response": { ... }, // JSON object
+        "start_date": "iso_datetime_string",
+        "end_date": "iso_datetime_string",
+        "search_type": "string (optional)",
+        "news_source": "string (optional)"
+      }
+      // ... more news items
+    ]
+  }
+  ```
+- **Success Response (201 Created):**
+  - Returns a list of the newly created news records in the same format as the GET request.
+  ```json
+  [
+    {
+      "id": 5,
+      "data_response": { ... },
+      "start_date": "2025-04-24T10:00:00Z",
+      "end_date": "2025-04-24T11:00:00Z",
+      "search_type": "deep_research",
+      "news_source": "politics"
+    }
+    // ... more created items
+  ]
+  ```
+- **Error Response (400 Bad Request):**
+  - If input data is invalid (e.g., missing required fields) or a database error occurs.
+  ```json
+  {
+    "news_items": [
+      {
+        "data_response": ["This field is required."]
+      },
+      {}
+    ]
+  }
+  // OR
+  {
+      "error": "Failed to create news items: [database error message]"
   }
   ```
 
@@ -201,8 +316,10 @@ Retrieve a paginated list of topics, with optional filtering by source.
 - **URL:** `/topics/`
 - **Query Parameters:**
   - `page` (integer, optional): Page number for pagination.
-  - `count` (integer, optional): Number of items per page (default: 10, max: 100).
+  - `count` (integer, optional): Number of items per page (default: 10, max: 5000).
   - `source` (string, optional): Filter topics by their source field.
+  - `random` (boolean, optional): If `true`, returns topics in a random order. Defaults to `false` (ordered by name).
+  - `vector_embedding` (boolean, optional): If `false`, excludes the `vector_embedding` field from the response. Defaults to `true`.
 - **Success Response (200 OK):**
   ```json
   {
@@ -215,12 +332,14 @@ Retrieve a paginated list of topics, with optional filtering by source.
       {
         "id": 1,
         "name": "Technology",
-        "source": "manual"
+        "source": "manual",
+        "vector_embedding": "base64_string_or_null"
       },
       {
         "id": 2,
         "name": "Science",
-        "source": "generated"
+        "source": "generated",
+        "vector_embedding": null
       }
       // ... more topics
     ]
@@ -278,7 +397,7 @@ Insert multiple topics in a single request. Uses `get_or_create` based on the `n
 
 ### 3.3 Batch Update Topics
 
-Update multiple existing topics in a single request. Each item in the `updates` list must contain the `id` of the topic to update and at least one field (`name` or `source`) to modify.
+Update multiple existing topics in a single request. Each item in the `updates` list must contain the `id` of the topic to update and at least one field (`name`, `source`, or `vector_embedding`) to modify.
 
 - **Method:** `PATCH`
 - **URL:** `/topics/`
@@ -286,8 +405,9 @@ Update multiple existing topics in a single request. Each item in the `updates` 
   ```json
   {
     "updates": [
-      {"id": integer, "name": "string (optional)", "source": "string (optional)"},
-      {"id": integer, "source": "string (optional)"}
+      {"id": integer, "name": "string (optional)"},
+      {"id": integer, "source": "string (optional)", "vector_embedding": "base64_string (optional)"},
+      {"id": integer, "vector_embedding": "" (optional, clears embedding)}
       // ... more updates
     ]
   }
@@ -301,7 +421,7 @@ Update multiple existing topics in a single request. Each item in the `updates` 
   }
   ```
 - **Error Response (400 Bad Request):**
-  - If input data is invalid (e.g., missing `id`, no update fields provided), a topic ID doesn't exist, or a database error occurs. Even if some updates succeed, a 400 is returned if any fail.
+  - If input data is invalid (e.g., missing `id`, no update fields, invalid base64 for `vector_embedding`), a topic ID doesn't exist, or a database error occurs. Even if some updates succeed, a 400 is returned if any fail.
   ```json
   {
     "updates": [
@@ -310,16 +430,11 @@ Update multiple existing topics in a single request. Each item in the `updates` 
       },
       {
         "non_field_errors": ["At least one field ('name' or 'source') must be provided for update."]
+      },
+      {
+        "vector_embedding": ["Invalid base64 format."]
       }
     ]
-  }
-  // OR
-  {
-    "errors": [
-      "Temator with id 999 does not exist."
-    ],
-    "updated_count": 1, // Number successfully updated before the error
-    "updated_ids": [1]  // IDs updated before the error
   }
   // OR
   {
