@@ -2,10 +2,11 @@
 
 from sentence_transformers import SentenceTransformer
 import torch
-print(f"cuda available: {torch.cuda.is_available()}") 
+
+print(f"cuda available: {torch.cuda.is_available()}")
 # Load the model on GPU
-model_name = 'Snowflake/snowflake-arctic-embed-l-v2.0'
-model = SentenceTransformer(model_name, device='cuda')
+model_name = "Snowflake/snowflake-arctic-embed-l-v2.0"
+model = SentenceTransformer(model_name, device="cuda")
 
 # # Define the queries and documents
 # queries = ['what is snowflake?', 'Where can I get the best tacos?']
@@ -27,18 +28,19 @@ model = SentenceTransformer(model_name, device='cuda')
 #         print(score, document)
 
 
-
 ### function create embeddings for a text
 from main import HEADERS, BASE_URL, httpx
 from base64 import b64encode
 import numpy as np
+from pydantic import BaseModel, field_validator
+import re
 
 def generate_embeddings_for_contrasting():
-    '''
+    """
     1. Fetch all contrast pairs with missing embeddings (paginated)
     2. Generate embeddings for each ("item1 vs item2")
     3. Batch update pairs with new embeddings
-    '''
+    """
     count = 1000
     page = 1
     params = {"page": page, "count": count, "vector_embedding": True}
@@ -65,8 +67,8 @@ def generate_embeddings_for_contrasting():
     # Batch process (in case of large number)
     batch_size = 256
     for i in range(0, len(texts), batch_size):
-        batch_pairs = all_pairs[i:i+batch_size]
-        batch_texts = texts[i:i+batch_size]
+        batch_pairs = all_pairs[i : i + batch_size]
+        batch_texts = texts[i : i + batch_size]
         print(f"Encoding batch {i//batch_size+1} ({len(batch_texts)} pairs)...")
         embeddings = model.encode(batch_texts)
         # Ensure embeddings is a numpy array
@@ -76,30 +78,49 @@ def generate_embeddings_for_contrasting():
         updates = []
         for pair, emb in zip(batch_pairs, embeddings):
             emb_bytes = emb.astype(np.float32).tobytes()
-            emb_b64 = b64encode(emb_bytes).decode('utf-8')
+            emb_b64 = b64encode(emb_bytes).decode("utf-8")
             updates.append({"id": pair["id"], "vector_embedding": emb_b64})
         # Send batch update
         patch_data = {"updates": updates}
-        patch_resp = httpx.patch(f"{BASE_URL}/contrast-pairs/update/", json=patch_data, headers=HEADERS)
+        patch_resp = httpx.patch(
+            f"{BASE_URL}/contrast-pairs/update/", json=patch_data, headers=HEADERS
+        )
         if patch_resp.status_code == 200:
             print(f"Batch {i//batch_size+1}: Updated {len(updates)} pairs.")
         else:
-            print(f"Batch {i//batch_size+1}: Error {patch_resp.status_code}: {patch_resp.text}")
+            print(
+                f"Batch {i//batch_size+1}: Error {patch_resp.status_code}: {patch_resp.text}"
+            )
     print("Embedding generation and update complete.")
 
 
-def get_similar_pairs(pair_string:str,k:int=10):
-    '''performs rag to get k most similar pairs to a given pair
+
+
+class PairStringInput(BaseModel):
+    pair_string: str
+
+    @field_validator("pair_string")
+    @classmethod
+    def must_match_vs_format(cls, v):
+        if not re.match(r"^.+ vs .+$", v):
+            raise ValueError("pair_string must be in the format 'Item1 vs Item2'")
+        return v
+
+
+def get_similar_pairs(pair_string: PairStringInput, k: int = 10):
+    """performs rag to get k most similar pairs to a given pair
     flow:
         1. gets all pairs from GET with pagination (1000)
         2. then search with rag for k most similar pairs
-        3. return pairs  
-    '''
+        3. return pairs
+        proper format of pair_string: "Item1 vs Item2"
+    """
     pass
 
 
 if __name__ == "__main__":
-    generate_embeddings_for_contrasting()
+    # generate_embeddings_for_contrasting()
+    get_similar_pairs(pair_string="Mata vs Young Leosia")
 
 ### generate embedding for contrasting ()
 
