@@ -1,13 +1,15 @@
 from mcp.server.fastmcp import FastMCP
 import httpx
 from typing import List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from config import HEADERS, BASE_URL  # <-- import from config
+from datetime import datetime
 
 # Create the MCP server instance
 
 mcp = FastMCP("Cypher Arena MCP Server", log_level="INFO")
 
+ISO_DATETIME_REGEX = r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?$'
 
 class TopicInsert(BaseModel):
     name: str
@@ -28,6 +30,13 @@ class TopicUpdate(BaseModel):
 class ContrastPairRating(BaseModel):
     pair_id: int
     rating: int
+
+class NewsItem(BaseModel):
+    data_response: dict
+    start_date: str = Field(..., pattern=ISO_DATETIME_REGEX)
+    end_date: str = Field(..., pattern=ISO_DATETIME_REGEX)
+    search_type: Optional[str] = None
+    news_source: Optional[str] = None
 
 # ----------- Contrast Pairs Endpoints -----------
 
@@ -87,9 +96,9 @@ def get_news(start_time: str, end_time: str, news_type: Optional[str] = None) ->
     return resp.json()
 
 @mcp.tool()
-def batch_create_news(news_items: List[dict]) -> list:
+def batch_create_news(news_items: List[NewsItem]) -> list:
     """Create multiple news records in a single request."""
-    data = {"news_items": news_items}
+    data = {"news_items": [item.dict(exclude_unset=True) for item in news_items]}
     resp = httpx.post(f"{BASE_URL}/news/", json=data, headers=HEADERS)
     resp.raise_for_status()
     return resp.json()
