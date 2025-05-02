@@ -1,1 +1,4 @@
 git add . && git commit -m "automatic" && git push
+
+
+docker build -t cypher_arena_mcp .

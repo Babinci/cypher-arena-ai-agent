@@ -77,7 +77,7 @@ def batch_rate_contrast_pairs(ratings: List[ContrastPairRating]) -> dict:
 def batch_update_contrast_pairs(updates: List[ContrastPairUpdate]) -> dict:
     """Update multiple existing contrast pairs in a single request."""
     # Convert Pydantic models to dicts, excluding None values
-    update_data = [u.dict(exclude_unset=True) for u in updates]
+    update_data = [u.model_dump(exclude_unset=True) for u in updates]
     data = {"updates": update_data}
     resp = httpx.patch(f"{BASE_URL}/contrast-pairs/update/", json=data, headers=HEADERS)
     resp.raise_for_status()
@@ -98,7 +98,7 @@ def get_news(start_time: str, end_time: str, news_type: Optional[str] = None) ->
 @mcp.tool()
 def batch_create_news(news_items: List[NewsItem]) -> list:
     """Create multiple news records in a single request."""
-    data = {"news_items": [item.dict(exclude_unset=True) for item in news_items]}
+    data = {"news_items": [item.model_dump(exclude_unset=True) for item in news_items]}
     resp = httpx.post(f"{BASE_URL}/news/", json=data, headers=HEADERS)
     resp.raise_for_status()
     return resp.json()
@@ -129,7 +129,7 @@ def get_topics(
 def batch_insert_topics(topics: List[TopicInsert]) -> list:
     """Insert multiple topics in a single request. Each topic must have a 'name' and can optionally have a 'source' (default: 'agent'). Uses get_or_create logic."""
     # Pydantic models need explicit conversion to dict for JSON serialization
-    data = {"topics": [t.dict(exclude_unset=True) for t in topics]}
+    data = {"topics": [t.model_dump(exclude_unset=True) for t in topics]}
     resp = httpx.post(f"{BASE_URL}/topics/", json=data, headers=HEADERS)
     resp.raise_for_status()
     return resp.json()
@@ -138,7 +138,7 @@ def batch_insert_topics(topics: List[TopicInsert]) -> list:
 def batch_update_topics(updates: List[TopicUpdate]) -> dict:
     """Update multiple existing topics in a single request."""
     # Convert Pydantic models to dicts, excluding None values
-    update_data = [u.dict(exclude_unset=True) for u in updates]
+    update_data = [u.model_dump(exclude_unset=True) for u in updates]
     data = {"updates": update_data}
     resp = httpx.patch(f"{BASE_URL}/topics/", json=data, headers=HEADERS)
     resp.raise_for_status()
