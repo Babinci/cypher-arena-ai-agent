@@ -120,6 +120,24 @@ def fetch_all_pairs_sync(count=800, max_concurrent=4):
     """Sync wrapper for async fetch_all_pairs_async."""
     return asyncio.run(fetch_all_pairs_async(count, max_concurrent))
 
+def fetch_all_pairs_direct():
+    """Fetches all contrast pairs using the fetch_all=true parameter."""
+    print("Fetching all pairs directly using fetch_all=true...")
+    params = {"fetch_all": True}
+    # vector_embedding is implicitly true when fetch_all=true according to docs
+    try:
+        resp = httpx.get(f"{BASE_URL}/contrast-pairs/", params=params, headers=HEADERS, timeout=None) # Allow long timeout for potentially large response
+        resp.raise_for_status()
+        data = resp.json()
+        print(f"Successfully fetched {len(data)} pairs directly.")
+        return data
+    except httpx.RequestError as exc:
+        print(f"An error occurred while requesting {exc.request.url!r}: {exc}")
+        raise
+    except httpx.HTTPStatusError as exc:
+        print(f"Error response {exc.response.status_code} while requesting {exc.request.url!r}: {exc.response.text}")
+        raise
+
 def get_similar_pairs(pair_string: PairStringInput, k: int = 10):
     """
     1. Fetch all contrast pairs with embeddings (async)
