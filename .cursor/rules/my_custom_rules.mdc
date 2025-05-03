@@ -21,6 +21,7 @@ alwaysApply: true
 - Use clear, consistent naming conventions
 - Implement features in the simplest possible way
 - Prefer modular design with clear separation of concerns
+- you are opting for simplest minimal solution that solves the problem
 
 ### Implementation Approach
 - Focus on core functionality before optimization

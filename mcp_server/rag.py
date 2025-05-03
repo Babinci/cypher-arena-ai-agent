@@ -1,10 +1,8 @@
 from sentence_transformers import SentenceTransformer
 import torch
-
-print(f"cuda available: {torch.cuda.is_available()}")
 # Load the model on GPU
-model_name = "Snowflake/snowflake-arctic-embed-l-v2.0"
-model = SentenceTransformer(model_name, device="cuda")
+# model_name = "Snowflake/snowflake-arctic-embed-l-v2.0"
+# model = SentenceTransformer(model_name, device="cuda")
 
 ### function create embeddings for a text
 from config import HEADERS, BASE_URL
@@ -13,6 +11,7 @@ from base64 import b64encode, b64decode
 import numpy as np
 import asyncio
 from schemas import PairStringInput
+from utils_cache import PAIRS_CACHE, load_model_async, init_cache, update_cache
 
 
 def generate_embeddings_for_contrasting():
@@ -46,6 +45,10 @@ def generate_embeddings_for_contrasting():
     texts = [f"{p['item1']} vs {p['item2']}" for p in all_pairs]
     # Batch process (in case of large number)
     batch_size = 256
+    # Always get model instance
+    model = asyncio.run(load_model_async()) if asyncio.get_event_loop().is_running() == False else None
+    if model is None:
+        model = asyncio.get_event_loop().run_until_complete(load_model_async())
     for i in range(0, len(texts), batch_size):
         batch_pairs = all_pairs[i : i + batch_size]
         batch_texts = texts[i : i + batch_size]
@@ -72,6 +75,8 @@ def generate_embeddings_for_contrasting():
                 f"Batch {i//batch_size+1}: Error {patch_resp.status_code}: {patch_resp.text}"
             )
     print("Embedding generation and update complete.")
+    # Optionally update cache after adding new embeddings
+    asyncio.create_task(update_cache(fetch_all_pairs_async))
 
 
 async def fetch_page_async(client, page, count):
@@ -102,41 +107,36 @@ async def fetch_all_pairs_async(count=600, max_concurrent=4):
         return results
 
 
-
 async def get_similar_pairs(pair_string: PairStringInput, k: int = 10):
     """
-    1. Fetch all contrast pairs with embeddings (async)
+    1. Use cached pairs with embeddings
     2. Generate embedding for the input pair_string
-    3. Decode all DB embeddings
+    3. Use pre-decoded DB embeddings from cache
     4. Compute cosine similarity
     5. Return top k most similar pairs (with similarity score)
     """
-    
-    # 1. Fetch all pairs with embeddings
-    # print("Fetching contrast pairs with embeddings (async)...")
-    all_pairs = await fetch_all_pairs_async()
-    # Only keep pairs with a non-None embedding
-    all_pairs = [p for p in all_pairs if p.get("vector_embedding")]
-    # print(f"Found {len(all_pairs)} pairs with embeddings.")
+    # Always get model instance
+    model = await load_model_async()
+    # Check if cache is initialized
+    if PAIRS_CACHE["data"] is None:
+        print("Cache not initialized, loading...")
+        await init_cache(fetch_all_pairs_async)
+    # Check if we have data in cache
+    all_pairs = PAIRS_CACHE["data"]
     if not all_pairs:
-        # print("No pairs with embeddings found.")
+        print("No pairs with embeddings found in cache.")
         return []
-    # 2. Generate embedding for input pair_string
+    # Generate embedding for input pair_string
     input_text = pair_string.pair_string if isinstance(pair_string, PairStringInput) else pair_string
     input_emb = model.encode([input_text])[0]
     input_emb = input_emb.astype(np.float32)
-    # 3. Decode all DB embeddings
-    db_embs = []
-    for p in all_pairs:
-        emb_bytes = b64decode(p["vector_embedding"])
-        emb = np.frombuffer(emb_bytes, dtype=np.float32)
-        db_embs.append(emb)
-    db_embs = np.stack(db_embs)
-    # 4. Compute cosine similarity
+    # Use pre-computed embeddings from cache
+    db_embs = PAIRS_CACHE["db_embeddings"]
+    # Compute cosine similarity
     input_norm = input_emb / np.linalg.norm(input_emb)
     db_norms = db_embs / np.linalg.norm(db_embs, axis=1, keepdims=True)
     sims = np.dot(db_norms, input_norm)
-    # 5. Sort and return top k
+    # Sort and return top k
     top_idx = np.argsort(sims)[::-1][:k]
     top_pairs = []
     for idx in top_idx:
@@ -148,16 +148,19 @@ async def get_similar_pairs(pair_string: PairStringInput, k: int = 10):
             "item2": pair["item2"],
             # "similarity": score
         })
-
     return top_pairs
 
-from pprint import pprint
-if __name__ == "__main__":
-    # generate_embeddings_for_contrasting()
-    top_pairs =   asyncio.run(get_similar_pairs(pair_string="wirtualne vs cyfrowa", k=50))
-    # pprint(f" Top pairs: {top_pairs}")
+
+async def main():
+    # Initialize cache at startup
+    await init_cache(fetch_all_pairs_async)
+    # Test the optimized function
+    top_pairs = await get_similar_pairs(pair_string="wirtualne vs cyfrowa", k=50)
     for pair in top_pairs:
         print(f"id: {pair['id']} | {pair['item1']} vs {pair['item2']}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
 
 ### generate embedding for contrasting ()
 
