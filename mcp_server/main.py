@@ -1,7 +1,7 @@
 from mcp.server.fastmcp import FastMCP
 import httpx
 from typing import List, Optional
-from config import HEADERS, BASE_URL  # <-- import from config
+from config import HEADERS, BASE_URL, logger  # <-- import from config
 from datetime import datetime
 from schemas import (
     TopicInsert,
@@ -16,6 +16,8 @@ from rag import get_similar_pairs
 from utils_cache import init_cache
 import asyncio
 from rag import fetch_all_pairs_async
+import time
+from mcp.server.fastmcp import Context
 
 # Create the MCP server instance
 
@@ -140,19 +142,46 @@ def batch_update_topics(updates: List[TopicUpdate]) -> dict:
 
 
 @mcp.tool()
-def get_similar_pairs_tool(pair: PairStringInput, k: int = 10) -> list:
+def get_similar_pairs_tool(pair: PairStringInput, k: int = 10, ctx: Context = None) -> list:
     '''this tool gets k most similar contrasing pairs in format Item1 vs Item2'''
-    # Directly pass the PairStringInput to the async function
+    # Check if context was provided (it should be by FastMCP)
+    if ctx is None:
+        logger.warning("Context object (ctx) not provided to get_similar_pairs_tool. Progress reporting disabled.")
+        # Fallback or raise error? For now, just log and proceed without progress.
+
+    logger.info(f"Entering get_similar_pairs_tool with pair='{pair.pair_string}', k={k}")
+    start_time = time.time()
+    # Directly pass the PairStringInput and ctx to the async function
     loop = asyncio.get_event_loop()
-    if loop.is_running():
-        return asyncio.run_coroutine_threadsafe(get_similar_pairs(pair, k), loop).result()
-    else:
-        return loop.run_until_complete(get_similar_pairs(pair, k))
+    result = None
+    try:
+        # Define the async call with context
+        async_call = get_similar_pairs(pair, k, ctx) # Pass ctx
+
+        if loop.is_running():
+            logger.debug("Event loop is running, using run_coroutine_threadsafe.")
+            future = asyncio.run_coroutine_threadsafe(async_call, loop)
+            result = future.result(timeout=60) # Example 60 second timeout
+        else:
+            logger.debug("Event loop is not running, using loop.run_until_complete.")
+            result = loop.run_until_complete(async_call)
+        end_time = time.time()
+        logger.info(f"Exiting get_similar_pairs_tool. Duration: {end_time - start_time:.2f}s. Found {len(result) if result else 0} pairs.")
+        return result
+    except asyncio.TimeoutError:
+        logger.error("Call to get_similar_pairs timed out within get_similar_pairs_tool.")
+        raise
+    except Exception as e:
+        logger.exception(f"Error during get_similar_pairs execution in get_similar_pairs_tool: {e}")
+        raise # Re-raise the exception to be handled by FastMCP
 
 
 # ----------- Server Entrypoint -----------
 
 if __name__ == "__main__":
+    import time # Add time import for logging duration
+    logger.info("Initializing cache before starting server...")
+    start_cache_init = time.time()
     # Initialize cache before starting the server
     loop = asyncio.get_event_loop()
     if loop.is_running():

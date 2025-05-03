@@ -33,11 +33,8 @@ class NewsItem(BaseModel):
     news_source: Optional[str] = None
 
 class PairStringInput(BaseModel):
-    pair_string: str
-
-    @field_validator("pair_string")
-    @classmethod
-    def must_match_vs_format(cls, v):
-        if not re.match(r"^.+ vs .+$", v):
-            raise ValueError("pair_string must be in the format 'Item1 vs Item2'")
-        return v
+    pair_string: str = Field(
+        ...,
+        pattern=r"^.+ vs .+$",
+        description="A string in the format 'Item1 vs Item2'"
+    )
