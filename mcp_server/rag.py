@@ -79,31 +79,65 @@ def generate_embeddings_for_contrasting():
     asyncio.create_task(update_cache(fetch_all_pairs_async))
 
 
-async def fetch_page_async(client, page, count):
+async def fetch_page_async(client: httpx.AsyncClient, page: int, count: int):
     params = {"page": page, "count": count, "vector_embedding": True}
-    resp = await client.get(f"{BASE_URL}/contrast-pairs/", params=params, headers=HEADERS)
-    resp.raise_for_status()
-    return resp.json()
+    try:
+        resp = await client.get(f"{BASE_URL}/contrast-pairs/", params=params, headers=HEADERS)
+        resp.raise_for_status()  # Raise an exception for bad status codes (4xx or 5xx)
+        return resp.json()
+    except httpx.RequestError as exc:
+        print(f"An error occurred while requesting page {page}: {exc}")
+        return None  # Return None or empty dict to indicate failure
+    except Exception as exc:
+        print(f"An unexpected error occurred fetching page {page}: {exc}")
+        return None
 
-async def fetch_all_pairs_async(count=600, max_concurrent=4):
-    async with httpx.AsyncClient() as client:
+async def fetch_all_pairs_async(count=200, max_concurrent=4, timeout=30.0):
+    # Create client with timeout
+    async with httpx.AsyncClient(timeout=timeout) as client:
         # Fetch first page to get total and results
-        first = await fetch_page_async(client, 1, count)
-        total = first.get("total", 0)
-        results = first.get("results", [])
+        print(f"Fetching first page with count={count}...")
+        first_page_data = await fetch_page_async(client, 1, count)
+        if not first_page_data:
+            print("Error fetching the first page. Aborting cache update.")
+            return [] # Return empty list if first page fails
+
+        total = first_page_data.get("total", 0)
+        results = first_page_data.get("results", [])
+        if not results:
+             print("No results found on the first page.")
+             # Decide if we should continue if first page is empty but total > 0?
+             # For now, return if first page results are empty.
+             return []
+
+        print(f"Total pairs reported by backend: {total}")
         num_pages = (total + count - 1) // count
+        print(f"Calculated number of pages: {num_pages}")
+
         if num_pages <= 1:
+            print("All pairs fetched on the first page.")
             return results
+
         # Limit concurrency
         semaphore = asyncio.Semaphore(max_concurrent)
+
         async def sem_fetch(page):
             async with semaphore:
-                return await fetch_page_async(client, page, count)
+                print(f"Fetching page {page}/{num_pages}...")
+                page_data = await fetch_page_async(client, page, count)
+                return page_data.get("results", []) if page_data else []
+
         # Prepare tasks for remaining pages
         tasks = [sem_fetch(page) for page in range(2, num_pages + 1)]
-        pages = await asyncio.gather(*tasks)
-        for page in pages:
-            results.extend(page.get("results", []))
+
+        print(f"Fetching remaining {len(tasks)} pages concurrently (max {max_concurrent})...")
+        page_results_list = await asyncio.gather(*tasks)
+
+        # Extend the main results list with results from other pages
+        for page_res in page_results_list:
+            results.extend(page_res)
+
+        print(f"Finished fetching all pages. Total pairs retrieved: {len(results)}")
         return results
 
 

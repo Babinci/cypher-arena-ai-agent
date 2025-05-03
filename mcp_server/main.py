@@ -4,8 +4,18 @@ from typing import List, Optional
 from config import HEADERS, BASE_URL  # <-- import from config
 from datetime import datetime
 from schemas import (
-    TopicInsert, ContrastPairUpdate, TopicUpdate, ContrastPairRating, NewsItem, ISO_DATETIME_REGEX
+    TopicInsert,
+    ContrastPairUpdate,
+    TopicUpdate,
+    ContrastPairRating,
+    NewsItem,
+    ISO_DATETIME_REGEX,
+    PairStringInput,
 )
+from rag import get_similar_pairs
+from utils_cache import init_cache
+import asyncio
+from rag import fetch_all_pairs_async
 
 # Create the MCP server instance
 
@@ -13,12 +23,13 @@ mcp = FastMCP("Cypher Arena MCP Server", log_level="INFO")
 
 # ----------- Contrast Pairs Endpoints -----------
 
+
 @mcp.tool()
 def get_contrast_pairs(
     page: Optional[int] = 1,
     count: Optional[int] = 10,
     random: Optional[bool] = False,
-    vector_embedding: Optional[bool] = False
+    vector_embedding: Optional[bool] = False,
 ) -> dict:
     """Retrieve a paginated list of contrast pairs, optionally randomized or with vector embeddings."""
     params = {"page": page, "count": count}
@@ -30,6 +41,7 @@ def get_contrast_pairs(
     resp.raise_for_status()
     return resp.json()
 
+
 @mcp.tool()
 def batch_create_contrast_pairs(pairs: List[dict]) -> list:
     """Create multiple contrast pairs in a single request."""
@@ -38,6 +50,7 @@ def batch_create_contrast_pairs(pairs: List[dict]) -> list:
     resp.raise_for_status()
     return resp.json()
 
+
 @mcp.tool()
 def batch_rate_contrast_pairs(ratings: List[ContrastPairRating]) -> dict:
     """Rate multiple contrast pairs in a single request."""
@@ -45,6 +58,7 @@ def batch_rate_contrast_pairs(ratings: List[ContrastPairRating]) -> dict:
     resp = httpx.post(f"{BASE_URL}/contrast-pairs/rate/", json=data, headers=HEADERS)
     resp.raise_for_status()
     return resp.json()
+
 
 @mcp.tool()
 def batch_update_contrast_pairs(updates: List[ContrastPairUpdate]) -> dict:
@@ -56,7 +70,9 @@ def batch_update_contrast_pairs(updates: List[ContrastPairUpdate]) -> dict:
     resp.raise_for_status()
     return resp.json()
 
+
 # ----------- News Endpoints -----------
+
 
 @mcp.tool()
 def get_news(start_time: str, end_time: str, news_type: Optional[str] = None) -> list:
@@ -68,6 +84,7 @@ def get_news(start_time: str, end_time: str, news_type: Optional[str] = None) ->
     resp.raise_for_status()
     return resp.json()
 
+
 @mcp.tool()
 def batch_create_news(news_items: List[NewsItem]) -> list:
     """Create multiple news records in a single request."""
@@ -76,7 +93,9 @@ def batch_create_news(news_items: List[NewsItem]) -> list:
     resp.raise_for_status()
     return resp.json()
 
+
 # ----------- Topics Endpoints -----------
+
 
 @mcp.tool()
 def get_topics(
@@ -84,7 +103,7 @@ def get_topics(
     count: Optional[int] = 10,
     source: Optional[str] = None,
     random: Optional[bool] = False,
-    vector_embedding: Optional[bool] = True
+    vector_embedding: Optional[bool] = True,
 ) -> dict:
     """Retrieve a paginated list of topics, with optional filtering, randomization, and vector embedding control."""
     params = {"page": page, "count": count}
@@ -92,11 +111,12 @@ def get_topics(
         params["source"] = source
     if random:
         params["random"] = True
-    if not vector_embedding: # Only add if False, as True is the default in the API
+    if not vector_embedding:  # Only add if False, as True is the default in the API
         params["vector_embedding"] = False
     resp = httpx.get(f"{BASE_URL}/topics/", params=params, headers=HEADERS)
     resp.raise_for_status()
     return resp.json()
+
 
 @mcp.tool()
 def batch_insert_topics(topics: List[TopicInsert]) -> list:
@@ -106,6 +126,7 @@ def batch_insert_topics(topics: List[TopicInsert]) -> list:
     resp = httpx.post(f"{BASE_URL}/topics/", json=data, headers=HEADERS)
     resp.raise_for_status()
     return resp.json()
+
 
 @mcp.tool()
 def batch_update_topics(updates: List[TopicUpdate]) -> dict:
@@ -118,7 +139,24 @@ def batch_update_topics(updates: List[TopicUpdate]) -> dict:
     return resp.json()
 
 
+@mcp.tool()
+def get_similar_pairs_tool(pair: PairStringInput, k: int = 10) -> list:
+    '''this tool gets k most similar contrasing pairs in format Item1 vs Item2'''
+    # Directly pass the PairStringInput to the async function
+    loop = asyncio.get_event_loop()
+    if loop.is_running():
+        return asyncio.run_coroutine_threadsafe(get_similar_pairs(pair, k), loop).result()
+    else:
+        return loop.run_until_complete(get_similar_pairs(pair, k))
+
+
 # ----------- Server Entrypoint -----------
 
 if __name__ == "__main__":
+    # Initialize cache before starting the server
+    loop = asyncio.get_event_loop()
+    if loop.is_running():
+        loop.create_task(init_cache(fetch_all_pairs_async))
+    else:
+        loop.run_until_complete(init_cache(fetch_all_pairs_async))
     mcp.run()

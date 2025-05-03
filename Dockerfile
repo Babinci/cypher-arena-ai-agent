@@ -1,34 +1,37 @@
 # Stage 1: Get uv binary
 FROM ghcr.io/astral-sh/uv:latest as uv
 
-# Stage 2: Build image with Python and uv
-FROM python:3.12.9-slim as build
+# Stage 2: Build image with Python, CUDA, and uv
+FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04 as build
 
 # Copy uv binary from the uv image
-COPY --from=uv /uv /bin/uv
+COPY --from=uv /uv /usr/local/bin/uv
 
-# Set up virtual environment
+# Install Python 3.12, pip, venv, and essential build tools
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    python3.12 \
+    python3-pip \
+    python3.12-venv \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Make python3.12 the default python3
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1
+
+# Set up virtual environment using the installed python3.12
 ENV VIRTUAL_ENV=/opt/venv
+RUN python3 -m venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 WORKDIR /app
 
-# Create venv and install dependencies
-RUN uv venv $VIRTUAL_ENV
-
+# Install dependencies using uv
 COPY requirements.txt .
 RUN uv pip install --no-cache-dir -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu121 --index-strategy unsafe-best-match
 
-# Copy the rest of the code
+# Copy the rest of the application code
 COPY . .
-
-# Stage 3: Final image (optional, for smaller images)
-# FROM python:3.12.9-slim
-# COPY --from=build /opt/venv /opt/venv
-# COPY --from=build /app /app
-# ENV VIRTUAL_ENV=/opt/venv
-# ENV PATH="$VIRTUAL_ENV/bin:$PATH"
-# WORKDIR /app
 
 # Default command
 CMD ["python", "mcp_server/main.py"]
