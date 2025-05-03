@@ -1,20 +1,27 @@
 # Stage 1: Get uv binary
-FROM ghcr.io/astral-sh/uv:latest as uv
+FROM ghcr.io/astral-sh/uv:latest AS uv
 
 # Stage 2: Build image with Python, CUDA, and uv
-FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04 as build
+FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04 AS build
 
 # Copy uv binary from the uv image
 COPY --from=uv /uv /usr/local/bin/uv
 
-# Install Python 3.12, pip, venv, and essential build tools
+# Install Python 3.12, pip, venv, and essential build tools using deadsnakes PPA
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    python3.12 \
-    python3-pip \
-    python3.12-venv \
-    git \
+        software-properties-common \
+        git \
+    && add-apt-repository ppa:deadsnakes/ppa \
+    && apt-get update && \
+    apt-get install -y --no-install-recommends \
+        python3.12 \
+        python3.12-venv \
+        curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Install pip for Python 3.12
+RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.12
 
 # Make python3.12 the default python3
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1
