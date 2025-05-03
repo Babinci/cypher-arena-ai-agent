@@ -142,7 +142,7 @@ def batch_update_topics(updates: List[TopicUpdate]) -> dict:
 
 
 @mcp.tool()
-def get_similar_pairs_tool(pair: PairStringInput, k: int = 10, ctx: Context = None) -> list:
+async def get_similar_pairs_tool(pair: PairStringInput, k: int = 10, ctx: Context = None) -> list:
     '''this tool gets k most similar contrasing pairs in format Item1 vs Item2'''
     # Check if context was provided (it should be by FastMCP)
     if ctx is None:
@@ -151,20 +151,8 @@ def get_similar_pairs_tool(pair: PairStringInput, k: int = 10, ctx: Context = No
 
     logger.info(f"Entering get_similar_pairs_tool with pair='{pair.pair_string}', k={k}")
     start_time = time.time()
-    # Directly pass the PairStringInput and ctx to the async function
-    loop = asyncio.get_event_loop()
-    result = None
     try:
-        # Define the async call with context
-        async_call = get_similar_pairs(pair, k, ctx) # Pass ctx
-
-        if loop.is_running():
-            logger.debug("Event loop is running, using run_coroutine_threadsafe.")
-            future = asyncio.run_coroutine_threadsafe(async_call, loop)
-            result = future.result(timeout=60) # Example 60 second timeout
-        else:
-            logger.debug("Event loop is not running, using loop.run_until_complete.")
-            result = loop.run_until_complete(async_call)
+        result = await get_similar_pairs(pair, k, ctx)  # Await the async function directly
         end_time = time.time()
         logger.info(f"Exiting get_similar_pairs_tool. Duration: {end_time - start_time:.2f}s. Found {len(result) if result else 0} pairs.")
         return result
