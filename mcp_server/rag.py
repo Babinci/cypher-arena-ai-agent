@@ -17,6 +17,7 @@ from pydantic import BaseModel, field_validator
 import re
 import asyncio
 
+
 def generate_embeddings_for_contrasting():
     """
     1. Fetch all contrast pairs with missing embeddings (paginated)
@@ -95,7 +96,7 @@ async def fetch_page_async(client, page, count):
     resp.raise_for_status()
     return resp.json()
 
-async def fetch_all_pairs_async(count=800, max_concurrent=4):
+async def fetch_all_pairs_async(count=600, max_concurrent=4):
     async with httpx.AsyncClient() as client:
         # Fetch first page to get total and results
         first = await fetch_page_async(client, 1, count)
@@ -116,29 +117,9 @@ async def fetch_all_pairs_async(count=800, max_concurrent=4):
             results.extend(page.get("results", []))
         return results
 
-def fetch_all_pairs_sync(count=800, max_concurrent=4):
-    """Sync wrapper for async fetch_all_pairs_async."""
-    return asyncio.run(fetch_all_pairs_async(count, max_concurrent))
 
-def fetch_all_pairs_direct():
-    """Fetches all contrast pairs using the fetch_all=true parameter."""
-    print("Fetching all pairs directly using fetch_all=true...")
-    params = {"fetch_all": True}
-    # vector_embedding is implicitly true when fetch_all=true according to docs
-    try:
-        resp = httpx.get(f"{BASE_URL}/contrast-pairs/", params=params, headers=HEADERS, timeout=None) # Allow long timeout for potentially large response
-        resp.raise_for_status()
-        data = resp.json()
-        print(f"Successfully fetched {len(data)} pairs directly.")
-        return data
-    except httpx.RequestError as exc:
-        print(f"An error occurred while requesting {exc.request.url!r}: {exc}")
-        raise
-    except httpx.HTTPStatusError as exc:
-        print(f"Error response {exc.response.status_code} while requesting {exc.request.url!r}: {exc.response.text}")
-        raise
 
-def get_similar_pairs(pair_string: PairStringInput, k: int = 10):
+async def get_similar_pairs(pair_string: PairStringInput, k: int = 10):
     """
     1. Fetch all contrast pairs with embeddings (async)
     2. Generate embedding for the input pair_string
@@ -146,11 +127,10 @@ def get_similar_pairs(pair_string: PairStringInput, k: int = 10):
     4. Compute cosine similarity
     5. Return top k most similar pairs (with similarity score)
     """
-    from base64 import b64decode
-    import numpy as np
+    
     # 1. Fetch all pairs with embeddings
     # print("Fetching contrast pairs with embeddings (async)...")
-    all_pairs = fetch_all_pairs_sync()
+    all_pairs = await fetch_all_pairs_async()
     # Only keep pairs with a non-None embedding
     all_pairs = [p for p in all_pairs if p.get("vector_embedding")]
     # print(f"Found {len(all_pairs)} pairs with embeddings.")
@@ -184,15 +164,13 @@ def get_similar_pairs(pair_string: PairStringInput, k: int = 10):
             "item2": pair["item2"],
             # "similarity": score
         })
-    # print(f"Top {k} most similar pairs to '{input_text}':")
-    # for p in top_pairs:
-    #     print(f"{p['item1']} vs {p['item2']} (id={p['id']}): similarity={p['similarity']:.4f}")
+
     return top_pairs
 
 from pprint import pprint
 if __name__ == "__main__":
     # generate_embeddings_for_contrasting()
-    top_pairs = get_similar_pairs(pair_string="wirtualne vs cyfrowa", k=50)
+    top_pairs =   asyncio.run(get_similar_pairs(pair_string="wirtualne vs cyfrowa", k=50))
     # pprint(f" Top pairs: {top_pairs}")
     for pair in top_pairs:
         print(f"id: {pair['id']} | {pair['item1']} vs {pair['item2']}")
