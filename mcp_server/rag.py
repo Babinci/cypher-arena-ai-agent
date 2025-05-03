@@ -230,10 +230,16 @@ async def get_similar_pairs(pair_string: PairStringInput, k: int = 10, ctx: Cont
     async def report_progress(step, total, message):
         if ctx and Context is not None:
             try:
-                logger.debug(f"Reporting progress: Step {step}/{total} - {message}")
-                await ctx.report_progress(step, total, message)
+                # Report the message using ctx.info first (optional)
+                # Note: Client needs to support/display these info messages
+                logger.debug(f"Sending info: {message}")
+                ctx.info(message)
+
+                # Report numerical progress
+                logger.debug(f"Reporting progress: Step {step}/{total}")
+                await ctx.report_progress(step, total)
             except Exception as report_err:
-                logger.warning(f"Failed to report progress: {report_err}")
+                logger.warning(f"Failed to report progress/info ({type(report_err).__name__}): {report_err}")
         else:
             logger.debug(f"Progress (no ctx): Step {step}/{total} - {message}")
 
