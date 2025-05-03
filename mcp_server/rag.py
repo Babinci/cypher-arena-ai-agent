@@ -1,5 +1,3 @@
-#### embedding model from huggingface- example from website
-
 from sentence_transformers import SentenceTransformer
 import torch
 
@@ -13,9 +11,8 @@ from config import HEADERS, BASE_URL
 import httpx
 from base64 import b64encode, b64decode
 import numpy as np
-from pydantic import BaseModel, field_validator
-import re
 import asyncio
+from schemas import PairStringInput
 
 
 def generate_embeddings_for_contrasting():
@@ -75,19 +72,6 @@ def generate_embeddings_for_contrasting():
                 f"Batch {i//batch_size+1}: Error {patch_resp.status_code}: {patch_resp.text}"
             )
     print("Embedding generation and update complete.")
-
-
-
-
-class PairStringInput(BaseModel):
-    pair_string: str
-
-    @field_validator("pair_string")
-    @classmethod
-    def must_match_vs_format(cls, v):
-        if not re.match(r"^.+ vs .+$", v):
-            raise ValueError("pair_string must be in the format 'Item1 vs Item2'")
-        return v
 
 
 async def fetch_page_async(client, page, count):
