@@ -7,18 +7,25 @@ FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04 AS build
 # Copy uv binary from the uv image
 COPY --from=uv /uv /usr/local/bin/uv
 
+# Set Debian frontend to noninteractive to avoid prompts
+ENV DEBIAN_FRONTEND=noninteractive
+
 # Install Python 3.12, pip, venv, and essential build tools using deadsnakes PPA
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         software-properties-common \
         git \
+        # Explicitly install tzdata non-interactively
+        tzdata \
     && add-apt-repository ppa:deadsnakes/ppa \
     && apt-get update && \
     apt-get install -y --no-install-recommends \
         python3.12 \
         python3.12-venv \
         curl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    # Clean up tzdata installation files if needed
+    && rm -rf /usr/share/doc/tzdata
 
 # Install pip for Python 3.12
 RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.12
@@ -33,9 +40,9 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 WORKDIR /app
 
-# Install dependencies using uv
+# Install dependencies using pip
 COPY requirements.txt .
-RUN uv pip install --no-cache-dir -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu121 --index-strategy unsafe-best-match
+RUN pip install --no-cache-dir -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu121
 
 # Copy the rest of the application code
 COPY . .
